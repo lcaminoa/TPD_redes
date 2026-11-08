@@ -3,9 +3,18 @@
 Cliente que se autentica ante el servidor de la cátedra por UDP y obtiene un puerto TCP.
 
 ## Compilar
+
 ```
-clang -Wall -o cliente cliente.c
+gcc -Wall -Wextra -Iinclude src/md5.c src/firma.c src/cliente_udp.c src/cliente_tcp.c   src/ip_publica.c src/cliente_cpX.c  -o cliente_cpX
 ```
+donde X cambia por 1 (checkpoint) o 2 general. 
+
+Después cuando borremos checkpoint o lo dejemos comentado podemos compilar con: 
+
+```
+gcc -Wall -Wextra -Iinclude src/*.c -o cliente_cp2
+```
+
 (En Linux sería `gcc` en lugar de `clang`.)
 
 ## Ejecutar
