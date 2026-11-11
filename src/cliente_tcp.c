@@ -29,13 +29,15 @@ int tcp_abrir(const char *servidor, const char *puerto)
         return -1;
     }
 
-    // 
+    // cuando establecemos la conec
     if (connect(fd, //socket descriptor
                  res->ai_addr, // ptr a un struct con la direccion del servidor
                  res->ai_addrlen)// tam de la estructura de la direccion) 
                  < 0 //fallo la conexion -> -1
                 ) {
         fprintf(stderr, "error al conectar TCP %s:%s\n", servidor, puerto);
+        perror("Descripción del error:");
+
         close(fd);
         freeaddrinfo(res);
         return -1;
@@ -44,19 +46,19 @@ int tcp_abrir(const char *servidor, const char *puerto)
     return fd;
 }
 
-/* ssize_t tcp_enviar(int fd, const char *buf, size_t len)
-{
-    // fd: socket, buf: puntero a los datos a enviar, len: cantidad de bytes a enviar
-    return send(fd, buf, len, 0);
-}
- */
 ssize_t tcp_recibir(int fd, char *buffer, size_t tam_buffer)
 {
-    //fd: socket a rec
+    //fd: socket a recibir, 
+    // buffer: puntero a la zona de memoria donde se guardarán los datos recibidos
+    // tam_buffer: cantidad máxima de bytes a recibir
+    //0 : no le ponemos flags
     return recv(fd, buffer, tam_buffer, 0);
+    //recv devuelve n: cantidad de bytes recibidos, 
+    // 0: conexión cerrada, -1: error
 }
 
 void tcp_cerrar(int fd)
 {
+    // si es un descriptor válido, cerramos el socket TCP
     if (fd >= 0) close(fd);
 }

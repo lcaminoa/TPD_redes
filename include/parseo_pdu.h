@@ -2,6 +2,7 @@
 #define PARSEO_PDU_H
 
 #include <stddef.h>
+#include <stdio.h>
 
 /*
 Límites del enunciado:
@@ -11,7 +12,9 @@ Límites del enunciado:
   - separador timestamp/message: '&' (0x26).
  */
 
-#define PDU_MAX_LEN            122 // del enunciado 
+#define PDU_MAX_LEN      122              /* total con CRLF (enunciado) */
+#define PDU_PAYLOAD_MAX  (PDU_MAX_LEN - 2) /* sin CRLF: 120 bytes útiles */
+
 #define PDU_TIMESTAMP_MAX      11 // 11 caracteres decimales permitidos
 #define PDU_MESSAGE_MAX        100 //cantidad de caracteres del msj
 #define PDU_PARSER_BUFFER_SIZE 8192  // definimos un tamaño de buffer interno para el parseo
@@ -23,13 +26,12 @@ typedef struct {
     size_t len;   /* cuántos bytes útiles hay en buffer */
 } pdu_parser_t;
 
-void pdu_parser_init(pdu_parser_t *p);
 
 int pdu_parser_feed(pdu_parser_t *p, const char *chunk, size_t n);
 
 
 int pdu_parser_siguiente(pdu_parser_t *p,
-                         char pdu_out[PDU_MAX_LEN + 1],
+                         char pdu_out[PDU_PAYLOAD_MAX + 1],
                          char parse_code_out[4],
                          int *enviar_out);
 
