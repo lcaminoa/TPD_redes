@@ -4,7 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 
-
+/*
+ * Constantes del estándar MD5 (RFC 1321):
+ *   S[] = cantidades de rotación en cada una de las 64 operaciones.
+ *   K[] = floor(2^32 * abs(sin(i+1))) para i = 0..63 (precomputado).
+ * Son static porque solo las usa este archivo.
+ */
 static const uint32_t S[64] = {
     7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
     5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
@@ -48,8 +53,8 @@ static uint32_t leer_palabra(const unsigned char *p)
          | ((uint32_t)p[3] << 24);
 }
 
-/* Procesa un bloque de 64 bytes y actualiza el estado `h[4]`. 
-static void md5_bloque(uint32_t h[4], const unsigned char *bloque)*/
+/* Procesa un bloque de 64 bytes y actualiza el estado `h[4]`. */
+static void md5_bloque(uint32_t h[4], const unsigned char *bloque)
 {
     uint32_t M[16];
     for (int i = 0; i < 16; i++) M[i] = leer_palabra(bloque + 4 * i);
@@ -75,23 +80,23 @@ static void md5_bloque(uint32_t h[4], const unsigned char *bloque)*/
 
 void md5(const char *texto, char salida[33])
 {
-   // Estado inicial del estándar 
+    /* Estado inicial del estándar */
     uint32_t h[4] = { 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476 };
 
     const unsigned char *datos = (const unsigned char *)texto;
     size_t len = strlen(texto);
     size_t pos = 0;
 
-   // 1. Procesar todos los bloques completos de 64 bytes 
+    /* 1) Procesar todos los bloques completos de 64 bytes */
     while (len - pos >= 64) {
         md5_bloque(h, datos + pos);
         pos += 64;
     }
 
-   // 2. Armar el último bloque con padding:
-          lo que sobró + 0x80 + ceros + longitud en bits (8 bytes) 
+    /* 2) Armar el último bloque con padding:
+          lo que sobró + 0x80 + ceros + longitud en bits (8 bytes) */
     size_t sobran = len - pos;
-    unsigned char ultimo[128] = {0};  // 128 por si necesitamos 2 bloques 
+    unsigned char ultimo[128] = {0};   /* 128 por si necesitamos 2 bloques */
     memcpy(ultimo, datos + pos, sobran);
     ultimo[sobran] = 0x80;
 
@@ -104,7 +109,7 @@ void md5(const char *texto, char salida[33])
     md5_bloque(h, ultimo);
     if (tam_ultimo == 128) md5_bloque(h, ultimo + 64);
 
-   // 3. Volcar h[0..3] a hex en minúscula, little-endian por palabra 
+    /* 3) Volcar h[0..3] a hex en minúscula, little-endian por palabra */
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             unsigned char byte = (unsigned char)(h[i] >> (8 * j));
