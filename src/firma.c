@@ -19,14 +19,14 @@ size_t armar_pdu_auth(char *salida, size_t tam_salida,
     char texto[TEXTO_MAX];
     char firma[33];
 
-    /* 1) Armar el string que se va a hashear, con el secreto al final */
+    /* 1. Armar el string que se va a hashear, con el secreto al final */
     int n = snprintf(texto, sizeof texto, "%s|%s|%s", usuario, ip, secreto);
     if (n < 0 || n >= (int)sizeof texto) return 0;
 
-    /* 2) Firmarlo */
+    /* 2. Firmarlo */
     md5(texto, firma);
 
-    /* 3) Armar la PDU final (sin el secreto, con la firma en su lugar) */
+    /* 3. Armar la PDU final (sin el secreto, con la firma en su lugar) */
     int m = snprintf(salida, tam_salida, "%s|%s|%s", usuario, ip, firma);
     if (m < 0 || m >= (int)tam_salida) return 0;
     return (size_t)m;
