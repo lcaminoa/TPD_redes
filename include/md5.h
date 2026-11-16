@@ -2,9 +2,8 @@
 #define MD5_H
 
 /*
- * Calcula el digesto MD5 del string `texto` y lo escribe en `salida`
- * como 32 chars hexadecimales en minúscula + '\0' (33 bytes totales).
- */
+Pasa el md5 del texto a 32 caracteres hex en minuscula en salida[33]
+*/
 void md5(const char *texto, char salida[33]);
 
-#endif /* MD5_H */
+#endif

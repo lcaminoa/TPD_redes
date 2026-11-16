@@ -1,57 +1,46 @@
 #include "parseo_pdu.h"
 
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include <stdlib.h> // atoll
+#include <string.h> // memchr, memcpy, memmove, strcpy
+#include <time.h> // time
 
-/* ------------------------------------------------------------------ */
-/* Helpers internos                                                   */
-/* ------------------------------------------------------------------ */
-
-/* Busca la primera aparición de 0x0D 0x0A en los primeros `len` bytes
-   de `buf`. Devuelve 1 y escribe la posición del '\r' en *pos_out;
-   devuelve 0 si no apareció. */
+/*
+Busca el primer \r\n (0x0D 0x0A) en los primeros len bytes de buf
+Si lo encuentra devuelve 1 y deja en pos_out donde está el '\r', si no devuelve 0
+*/
 static int buscar_crlf(const char *buf, size_t len, size_t *pos_out)
 {
-    // recorremos el buffer hasta len-1  y buscamos la secuencia 0x0D 0x0A
     for (size_t i = 0; i + 1 < len; i++) {
         if (buf[i] == 0x0D && buf[i + 1] == 0x0A) {
             *pos_out = i;
-            return 1; // se encontró 
+            return 1;
         }
     }
-    return 0; // no se encontró
+    return 0;
 }
 
 /*
- * Asigna el PARSE_CODE a una PDU candidata (ya limpia de CRLF)
- * Tenemos <TIMESTAMP><AMPERSAND><MESSAGE>
- *              EJ: 1792303547&Temperatura ambiente 11 grados
- *   1. 400  si no hay '&' (no se forman los 2 campos).
- *   2. Timestamp:
- *      407  si tiene > 11 chars.
- *      405  si tiene chars fuera de 0x30-0x39. -> (48,57) en ascii
- *      406  si |actual - timestamp| > 300 s.
- *   3. Message:
- *      409  si está vacío.
- *      410  si tiene > 100 chars.
- *      408  si tiene chars fuera de [0x20..0x7D] o es 0x26/0x7C.
- *   4. Si todo pasa: 200.
- *
- * `pdu` es un C-string (termina en '\0'); `len` es su longitud útil.
- */
+Le asigna el parse_code a una PDU (ya sin el \r\n)
+Tenemos <TIMESTAMP>&<MESSAGE>, ej: 1792303547&Temperatura ambiente 11 grados
+1. 400 si no hay '&'
+2. Timestamp: 407 si tiene mas de 11 chars, 405 si no son todos digitos,
+   406 si difiere en mas de 300 seg con la hora actual
+3. Message: 409 si está vacio, 410 si tiene mas de 100 chars,
+   408 si tiene chars fuera de [0x20..0x7D] o '&' o '|'
+4. Si todo pasa: 200
+*/
 static void clasificar(const char *pdu, size_t len, char parse_code_out[4])
 {
     // 1. Separador '&'
     const char *amp = memchr(pdu, '&', len);
-    if (!amp) { 
+    if (!amp) {
         strcpy(parse_code_out, "400");
         return;
     }
     // separamos timestamp y message
-    size_t timestamp_len  = (size_t)(amp - pdu);
-    const char *message   = amp + 1;
-    size_t message_len    = len - timestamp_len - 1;
+    size_t timestamp_len = (size_t)(amp - pdu);
+    const char *message = amp + 1;
+    size_t message_len = len - timestamp_len - 1;
 
     // 2. condiciones sobre timestamp
     if (timestamp_len > PDU_TIMESTAMP_MAX) {
@@ -64,19 +53,20 @@ static void clasificar(const char *pdu, size_t len, char parse_code_out[4])
             return;
         }
     }
-    /* Convertimos a long long para chequear antigüedad. */
+    // Lo pasamos a numero para ver la diferencia con la hora actual
     char ts_str[PDU_TIMESTAMP_MAX + 1];
     memcpy(ts_str, pdu, timestamp_len);
     ts_str[timestamp_len] = '\0';
-    long long ts     = atoll(ts_str);
-    long long ahora  = (long long)time(NULL);
-    long long delta  = ahora - ts;
-    if (delta < 0) delta = -delta;   /* tanto adelanto como atraso */
+    long long ts = atoll(ts_str);
+    long long ahora = (long long)time(NULL);
+    long long delta = ahora - ts;
+    if (delta < 0) delta = -delta; // puede estar adelantado o atrasado
     if (delta > PDU_DELTA_MAX_SEG) {
         strcpy(parse_code_out, "406");
         return;
     }
-    //3. condiciones sobre msj
+
+    // 3. condiciones sobre msj
     if (message_len == 0) {
         strcpy(parse_code_out, "409");
         return;
@@ -93,65 +83,48 @@ static void clasificar(const char *pdu, size_t len, char parse_code_out[4])
         }
     }
 
-    //tido ok -> no hay errores de parseo
+    // todo ok -> no hay errores de parseo
     strcpy(parse_code_out, "200");
 }
 
-// _____________Parseo: logica de delimitación______________
-
 int pdu_parser_feed(pdu_parser_t *p, const char *chunk, size_t n)
 {
-    // tenemos el parser, el buffer interno y los bytes recibidos en este
-
-    // si el parser + los datos nuevos exceden el tamaño del buffer, devolvemos error
+    // si lo que ya hay + lo nuevo no entra en el buffer, devolvemos error
     if (p->len + n > PDU_PARSER_BUFFER_SIZE) {
-        fprintf(stderr, "Buffer del parser lleno: %zu + %zu > %d\n",
-                p->len, n, PDU_PARSER_BUFFER_SIZE);
+        fprintf(stderr, "Buffer del parser lleno: %zu + %zu > %d\n", p->len, n, PDU_PARSER_BUFFER_SIZE);
         return -1;
     }
-    // en p.buffer copiamos los datos del chuck 
+    // copiamos el chunk al final de lo que ya teniamos
     memcpy(p->buffer + p->len, chunk, n);
-    p->len += n; // actualizamos la cantidad de bytes útiles en el buffer
+    p->len += n;
     return 0;
 }
 
-int pdu_parser_siguiente(pdu_parser_t *p,
-                         char pdu_out[PDU_PAYLOAD_MAX + 1],
-                         char parse_code_out[4],
-                         int *enviar_out)
+int pdu_parser_siguiente(pdu_parser_t *p, char pdu_out[PDU_PARSER_BUFFER_SIZE], char parse_code_out[4], int *enviar_out)
 {
-    size_t pos; // pos donde comienza el CRLF de la PDU candidata
+    size_t pos; // donde empieza el \r\n
     if (!buscar_crlf(p->buffer, p->len, &pos)) {
-        return 0;   /* no hay PDU completa aún */
+        return 0; // todavia no llegó una PDU completa
     }
+    size_t pdu_len = pos;
 
-    
-    size_t pdu_len = pos; 
+    // Copiamos la PDU entera (sin el \r\n), aunque pase los 122 bytes:
+    // hay que reenviarla tal cual llegó con su parse_code
+    // (si es mas larga, es porque el timestamp o el message se pasan -> 407 o 410)
+    memcpy(pdu_out, p->buffer, pdu_len);
+    pdu_out[pdu_len] = '\0';
 
-    // tenemos 122 de bytes de máximo con delimitadores
-    // -> entonces sin delimitadores <TIMESTAMP><AMPERSAND><MESSAGE> <=120 bytes
-    size_t copy_len = (pdu_len > PDU_PAYLOAD_MAX) ? PDU_PAYLOAD_MAX : pdu_len;
-    memcpy(pdu_out, p->buffer, copy_len);// copiamos la PDU candidata sin CRLF
-    pdu_out[copy_len] = '\0'; // terminamos el string con \0
+    clasificar(pdu_out, pdu_len, parse_code_out);
 
-    if (pdu_len > PDU_MAX_LEN) {
-        strcpy(parse_code_out, "400");
-    } else {
-        clasificar(pdu_out, pdu_len, parse_code_out);
-    }
+    // Solo se reenvia si la PDU no tiene '|' (0x7C)
+    *enviar_out = (memchr(pdu_out, '|', pdu_len) == NULL);
 
-    // El reenvío solo sucede si la PDU no contiene '|' -> 0x7C
-    // si no hay enviar_out = 1, sino 0
-    *enviar_out = (memchr(pdu_out, '|', copy_len) == NULL); 
-
-    //sacamos el buffer los bytes de la PDU + los dos de los delimitadores CRLF
-    size_t consumido = pdu_len + 2;   /* +2 por \r\n */
-    size_t restante  = p->len - consumido;
-    // movemos los bytes restantes al inicio del buffer
+    // Sacamos del buffer la PDU + el \r\n y corremos lo que queda al principio
+    size_t consumido = pdu_len + 2;
+    size_t restante = p->len - consumido;
     if (restante > 0) {
         memmove(p->buffer, p->buffer + consumido, restante);
     }
     p->len = restante;
-
     return 1;
 }

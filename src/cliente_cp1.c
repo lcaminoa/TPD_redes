@@ -1,11 +1,9 @@
-/*  #include <stdio.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "ip_publica.h"
 #include "firma.h"
 #include "cliente_udp.h"
-//SACAR ESTE IMPORT DE TCP 
-#include "cliente_tcp.h"
 
 #define PUERTO_UDP_SERVER   "20262"
 #define TIMEOUT_SEG         10
@@ -77,5 +75,4 @@ int main(int argc, char *argv[])
     printf("No llego respuesta valida en %d segundos.\n", TIMEOUT_SEG);
     udp_cerrar(fd);
     return 1;
-} 
- */
+}
